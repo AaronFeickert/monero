@@ -287,6 +287,36 @@ namespace rct
         return r;
     }
 
+    // Recursively build commitment scalars
+    struct recursion_state
+    {
+        size_t begin;
+        size_t end;
+        size_t n;
+        keyM f;
+        keyV scalars;
+    };
+    void recurse(const key &t_, int j, recursion_state &data)
+    {
+        j -= 1;
+        if (j == -1)
+        {
+            if (data.begin < data.end)
+            {
+                data.scalars[data.begin] = copy(t_);
+                data.begin++;
+            }
+            return;
+        }
+
+        for (size_t i = 0; i < data.n; i++)
+        {
+            key t = copy(data.f[j][i]);
+            sc_mul(t.bytes,t.bytes,t_.bytes);
+            recurse(t,j,data);
+        }
+    }
+
     // Generate a Triptych proof
     TriptychProof triptych_prove(const keyV &M, const keyV &P, const key &C_offset, const size_t l, const key &r, const key &s, const size_t n, const size_t m, const key &message)
     {
@@ -747,27 +777,24 @@ namespace rct
             // M,P
             // M[k]: w3*t
             // P[k]: w3*t*mu
+            recursion_state state;
+            state.begin = 0;
+            state.end = N;
+            state.n = n;
+            state.f = f;
+            state.scalars = keyV(N);
+            recurse(ONE,m,state);
+
             key sum_t = ZERO;
             for (size_t k = 0; k < N; k++)
             {
-                key t = ONE;
-                std::vector<size_t> decomp_k;
-                decomp_k.reserve(m);
-                decomp_k.resize(m);
-                decompose(decomp_k,k,n,m);
-
-                for (size_t j = 0; j < m; j++)
-                {
-                    sc_mul(t.bytes,t.bytes,f[j][decomp_k[j]].bytes);
-                }
-
-                sc_mul(temp.bytes,w3.bytes,t.bytes);
+                sc_mul(temp.bytes,w3.bytes,state.scalars[k].bytes);
                 sc_add(data[m*n+1+k].scalar.bytes,data[m*n+1+k].scalar.bytes,temp.bytes);
 
                 sc_mul(temp.bytes,temp.bytes,mu.bytes);
                 sc_add(data[m*n+N+1+k].scalar.bytes,data[m*n+N+1+k].scalar.bytes,temp.bytes);
 
-                sc_add(sum_t.bytes,sum_t.bytes,t.bytes);
+                sc_add(sum_t.bytes,sum_t.bytes,state.scalars[k].bytes);
             }
 
             // C_offsets[i_proofs]: -w3*mu*sum_t
