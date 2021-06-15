@@ -49,6 +49,7 @@ namespace rct
 
     // Global data
     static std::shared_ptr<pippenger_cached_data> cache;
+    static std::shared_ptr<straus_cached_data> cache_straus;
     static ge_p3 Hi_p3[max_mn];
     static ge_p3 H_p3;
     static ge_p3 G_p3;
@@ -200,7 +201,7 @@ namespace rct
             data.push_back({ZERO,Hi_p3[i]});
         }
         CHECK_AND_ASSERT_THROW_MES(data.size() == max_mn, "Bad generator vector size!");
-        cache = pippenger_init_cache(data,0,0);
+        cache = pippenger_init_cache(data);
 
         // Build U
         // U = keccak("triptych U")
@@ -233,12 +234,14 @@ namespace rct
     }
 
     // Commit to a scalar matrix
-    static void com_matrix(std::vector<MultiexpData> &data, const keyM &M, const key &r)
+    static key com_matrix(const keyM &M, const key &r)
     {
         const size_t m = M.size();
         const size_t n = M[0].size();
         CHECK_AND_ASSERT_THROW_MES(m*n <= max_mn, "Bad matrix commitment parameters!");
-        CHECK_AND_ASSERT_THROW_MES(data.size() >= m*n + 1, "Bad matrix commitment result vector size!");
+        std::vector<MultiexpData> data;
+        data.reserve(m*n+1);
+        data.resize(m*n+1);
 
         for (size_t j = 0; j < m; j++)
         {
@@ -247,7 +250,9 @@ namespace rct
                 data[j*n + i] = {M[j][i], Hi_p3[j*n + i]};
             }
         }
-        data[m*n] = {r, H_p3}; // mask
+        data[m*n] = {r, H_p3};
+        CHECK_AND_ASSERT_THROW_MES(data.size() == m*n+1, "Bad matrix commitment parameters!");
+        return straus(data,cache_straus);
     }
 
     // Kronecker delta
@@ -308,6 +313,15 @@ namespace rct
 
         init_gens();
 
+        // Initialize the matrix cache
+        std::vector<MultiexpData> cache_straus_data;
+        for (size_t i = 0; i < m*n; i++)
+        {
+            cache_straus_data.push_back({ZERO,Hi_p3[i]});
+        }
+        cache_straus_data.push_back({ZERO,H_p3});
+        cache_straus = straus_init_cache(cache_straus_data);
+
         TriptychProof proof;
         std::vector<MultiexpData> data;
         data.reserve(m*n + 1);
@@ -342,9 +356,7 @@ namespace rct
                 sc_sub(a[j][0].bytes,a[j][0].bytes,a[j][i].bytes);
             }
         }
-        com_matrix(data,a,rA);
-        CHECK_AND_ASSERT_THROW_MES(data.size() == m*n + 1, "Matrix commitment returned unexpected size!");
-        proof.A = straus(data);
+        proof.A = com_matrix(a,rA);
         CHECK_AND_ASSERT_THROW_MES(!(proof.A == IDENTITY), "Linear combination unexpectedly returned zero!");
 
         // Commit to decomposition bits
@@ -363,9 +375,7 @@ namespace rct
                 sigma[j][i] = delta(decomp_l[j],i);
             }
         }
-        com_matrix(data,sigma,rB);
-        CHECK_AND_ASSERT_THROW_MES(data.size() == m*n + 1, "Matrix commitment returned unexpected size!");
-        proof.B = straus(data);
+        proof.B = com_matrix(sigma,rB);
         CHECK_AND_ASSERT_THROW_MES(!(proof.B == IDENTITY), "Linear combination unexpectedly returned zero!");
 
         // Commit to a/sigma relationships
@@ -381,9 +391,7 @@ namespace rct
                 sc_mul(a_sigma[j][i].bytes, a_sigma[j][i].bytes, a[j][i].bytes);
             }
         }
-        com_matrix(data,a_sigma,rC);
-        CHECK_AND_ASSERT_THROW_MES(data.size() == m*n + 1, "Matrix commitment returned unexpected size!");
-        proof.C = straus(data);
+        proof.C = com_matrix(a_sigma,rC);
         CHECK_AND_ASSERT_THROW_MES(!(proof.C == IDENTITY), "Linear combination unexpectedly returned zero!");
 
         // Commit to squared a-values
@@ -396,9 +404,7 @@ namespace rct
                 sc_mul(a_sq[j][i].bytes,MINUS_ONE.bytes,a_sq[j][i].bytes);
             }
         }
-        com_matrix(data,a_sq,rD);
-        CHECK_AND_ASSERT_THROW_MES(data.size() == m*n + 1, "Matrix commitment returned unexpected size!");
-        proof.D = straus(data);
+        proof.D = com_matrix(a_sq,rD);
         CHECK_AND_ASSERT_THROW_MES(!(proof.D == IDENTITY), "Linear combination unexpectedly returned zero!");
 
         // Compute p coefficients
