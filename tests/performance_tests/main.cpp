@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2020, The Monero Project
+// Copyright (c) 2014-2021, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -63,6 +63,7 @@
 #include "sig_mlsag.h"
 #include "sig_clsag.h"
 #include "triptych.h"
+#include "triptych_prove.h"
 
 namespace po = boost::program_options;
 
@@ -241,6 +242,14 @@ int main(int argc, char** argv)
 
   TEST_PERFORMANCE1(filter, p, test_range_proof, true);
   TEST_PERFORMANCE1(filter, p, test_range_proof, false);
+
+  TEST_PERFORMANCE2(filter, p, test_triptych_prove, 2, 2);
+  TEST_PERFORMANCE2(filter, p, test_triptych_prove, 2, 3);
+  TEST_PERFORMANCE2(filter, p, test_triptych_prove, 2, 4);
+  TEST_PERFORMANCE2(filter, p, test_triptych_prove, 2, 5);
+  TEST_PERFORMANCE2(filter, p, test_triptych_prove, 2, 6);
+  TEST_PERFORMANCE2(filter, p, test_triptych_prove, 2, 7);
+  TEST_PERFORMANCE2(filter, p, test_triptych_prove, 2, 8);
 
   TEST_PERFORMANCE4(filter, p, test_triptych, 2, 2, 2, 2);
   TEST_PERFORMANCE4(filter, p, test_triptych, 2, 3, 2, 2);

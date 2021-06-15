@@ -290,7 +290,7 @@ namespace rct
     // Generate a Triptych proof
     TriptychProof triptych_prove(const keyV &M, const keyV &P, const key &C_offset, const size_t l, const key &r, const key &s, const size_t n, const size_t m, const key &message)
     {
-        key temp,temp2;
+        key temp;
 
         CHECK_AND_ASSERT_THROW_MES(n > 1, "Must have n > 1!");
         CHECK_AND_ASSERT_THROW_MES(m > 1, "Must have m > 1!");
@@ -452,29 +452,49 @@ namespace rct
         transcript_update_mu(tr,message,M,P,C_offset,proof.J,proof.K,proof.A,proof.B,proof.C,proof.D);
         const key mu = copy(tr);
 
+        // Cache input points
+        std::vector<MultiexpData> X_cache_data;
+        std::vector<MultiexpData> data_X;
+        X_cache_data.reserve(2*N+2);
+        data_X.reserve(2*N+2); // {M},{P},G,C_offset
+        for (size_t k = 0; k < N; k++)
+        {
+            X_cache_data.push_back({ZERO,M[k]});
+            X_cache_data.push_back({ZERO,P[k]});
+            data_X.push_back({ZERO,M[k]});
+            data_X.push_back({ZERO,P[k]});
+        }
+        X_cache_data.push_back({ZERO,G});
+        X_cache_data.push_back({ZERO,C_offset});
+        data_X.push_back({ZERO,G});
+        data_X.push_back({ZERO,C_offset});
+        std::shared_ptr<pippenger_cached_data> X_cache = pippenger_init_cache(X_cache_data,0);
+
         key U_scalars;
+        key C_offset_scalars;
         for (size_t j = 0; j < m; j++)
         {
-            std::vector<MultiexpData> data_X;
-            data_X.reserve(2*N);
-            
             U_scalars = ZERO;
+            C_offset_scalars = ZERO;
 
             for (size_t k = 0; k < N; k++)
             {
                 // X[j] += p[k][j]*(M[k] + mu*P[k])
                 // Y[j] += p[k][j]*U
-                data_X.push_back({p[k][j],M[k]});
+                data_X[2*k].scalar = p[k][j];
 
                 sc_mul(temp.bytes,mu.bytes,p[k][j].bytes);
-                subKeys(temp2,P[k],C_offset);
-                data_X.push_back({temp,temp2});
+                data_X[2*k+1].scalar = temp;
 
+                sc_add(C_offset_scalars.bytes,C_offset_scalars.bytes,temp.bytes);
                 sc_add(U_scalars.bytes,U_scalars.bytes,p[k][j].bytes);
             }
-            // X[j] += rho[j]*G
+            // X[j] += rho[j]*G - C_offset_scalars*C_offset
             // Y[j] += rho[j]*J
-            addKeys1(proof.X[j], rho[j], straus(data_X));
+            data_X[2*N].scalar = rho[j];
+            sc_mul(C_offset_scalars.bytes,C_offset_scalars.bytes,MINUS_ONE.bytes);
+            data_X[2*N+1].scalar = C_offset_scalars;
+            proof.X[j] = pippenger(data_X,X_cache);
             CHECK_AND_ASSERT_THROW_MES(!(proof.X[j] == IDENTITY), "Proof coefficient element should not be zero!");
 
             proof.Y[j] = scalarmultKey(U,U_scalars);
