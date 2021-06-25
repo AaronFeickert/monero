@@ -476,36 +476,30 @@ namespace rct
         data_X.push_back({ZERO,C_offset});
         std::shared_ptr<pippenger_cached_data> X_cache = pippenger_init_cache(X_cache_data,0);
 
-        key U_scalars;
         key C_offset_scalars;
         for (size_t j = 0; j < m; j++)
         {
-            U_scalars = ZERO;
             C_offset_scalars = ZERO;
 
             for (size_t k = 0; k < N; k++)
             {
                 // X[j] += p[k][j]*(M[k] + mu*P[k])
-                // Y[j] += p[k][j]*U
                 data_X[2*k].scalar = p[k][j];
 
                 sc_mul(temp.bytes,mu.bytes,p[k][j].bytes);
                 data_X[2*k+1].scalar = temp;
 
                 sc_add(C_offset_scalars.bytes,C_offset_scalars.bytes,temp.bytes);
-                sc_add(U_scalars.bytes,U_scalars.bytes,p[k][j].bytes);
             }
             // X[j] += rho[j]*G - C_offset_scalars*C_offset
-            // Y[j] += rho[j]*J
+            // Y[j] = rho[j]*J
             data_X[2*N].scalar = rho[j];
             sc_mul(C_offset_scalars.bytes,C_offset_scalars.bytes,MINUS_ONE.bytes);
             data_X[2*N+1].scalar = C_offset_scalars;
             proof.X[j] = pippenger(data_X,X_cache);
             CHECK_AND_ASSERT_THROW_MES(!(proof.X[j] == IDENTITY), "Proof coefficient element should not be zero!");
 
-            proof.Y[j] = scalarmultKey(U,U_scalars);
-            key rho_J = scalarmultKey(proof.J,rho[j]);
-            addKeys(proof.Y[j],proof.Y[j],rho_J);
+            proof.Y[j] = scalarmultKey(proof.J,rho[j]);
             CHECK_AND_ASSERT_THROW_MES(!(proof.Y[j] == IDENTITY), "Proof coefficient element should not be zero!");
         }
 
