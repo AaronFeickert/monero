@@ -597,6 +597,29 @@ std::shared_ptr<pippenger_cached_data> pippenger_init_cache(const std::vector<Mu
   return cache;
 }
 
+std::shared_ptr<pippenger_cached_data> pippenger_init_cache(const std::vector<DoubleMultiexpData> &data, bool use_b, size_t start_offset, size_t N)
+{
+  MULTIEXP_PERF(PERF_TIMER_START_UNIT(pippenger_init_cache, 1000000));
+  CHECK_AND_ASSERT_THROW_MES(start_offset <= data.size(), "Bad cache base data");
+  if (N == 0)
+    N = data.size() - start_offset;
+  CHECK_AND_ASSERT_THROW_MES(N <= data.size() - start_offset, "Bad cache base data");
+  std::shared_ptr<pippenger_cached_data> cache(new pippenger_cached_data());
+
+  cache->size = N;
+  cache->cached = (ge_cached*)aligned_realloc(cache->cached, N * sizeof(ge_cached), 4096);
+  CHECK_AND_ASSERT_THROW_MES(cache->cached, "Out of memory");
+  for (size_t i = 0; i < N; ++i) {
+    if (use_b)
+      ge_p3_to_cached(&cache->cached[i], &data[i+start_offset].point_b);
+    else
+      ge_p3_to_cached(&cache->cached[i], &data[i+start_offset].point_a);
+  }
+
+  MULTIEXP_PERF(PERF_TIMER_STOP(pippenger_init_cache));
+  return cache;
+}
+
 size_t pippenger_get_cache_size(const std::shared_ptr<pippenger_cached_data> &cache)
 {
   return cache->size * sizeof(*cache->cached);
@@ -702,6 +725,124 @@ rct::key pippenger(const std::vector<MultiexpData> &data, const std::shared_ptr<
   rct::key res;
   ge_p3_tobytes(res.bytes, &result);
   return res;
+}
+
+std::vector<rct::key> double_pippenger(const std::vector<DoubleMultiexpData> &data, size_t c)
+{
+  if (c == 0)
+    c = get_pippenger_c(data.size());
+  CHECK_AND_ASSERT_THROW_MES(c <= 9, "c is too large");
+
+  ge_p3 result_a = ge_p3_identity;
+  ge_p3 result_b = ge_p3_identity;
+  bool result_init = false;
+  std::unique_ptr<ge_p3[]> buckets_a{new ge_p3[1<<c]};
+  std::unique_ptr<ge_p3[]> buckets_b{new ge_p3[1<<c]};
+  bool buckets_init[1<<9];
+  std::shared_ptr<pippenger_cached_data> local_cache_a = pippenger_init_cache(data);
+  std::shared_ptr<pippenger_cached_data> local_cache_b = pippenger_init_cache(data, true);
+
+  rct::key maxscalar = rct::zero();
+  for (size_t i = 0; i < data.size(); ++i)
+  {
+    if (maxscalar < data[i].scalar)
+      maxscalar = data[i].scalar;
+  }
+  size_t groups = 0;
+  while (groups < 256 && !(maxscalar < pow2(groups)))
+    ++groups;
+  groups = (groups + c - 1) / c;
+
+  for (size_t k = groups; k-- > 0; )
+  {
+    if (result_init)
+    {
+      ge_p2 p2_a;
+      ge_p2 p2_b;
+      ge_p3_to_p2(&p2_a, &result_a);
+      ge_p3_to_p2(&p2_b, &result_b);
+      for (size_t i = 0; i < c; ++i)
+      {
+        ge_p1p1 p1_a;
+        ge_p1p1 p1_b;
+        ge_p2_dbl(&p1_a, &p2_a);
+        ge_p2_dbl(&p1_b, &p2_b);
+        if (i == c - 1) {
+          ge_p1p1_to_p3(&result_a, &p1_a);
+          ge_p1p1_to_p3(&result_b, &p1_b);
+        }
+        else {
+          ge_p1p1_to_p2(&p2_a, &p1_a);
+          ge_p1p1_to_p2(&p2_b, &p1_b);
+        }
+      }
+    }
+    memset(buckets_init, 0, 1u<<c);
+
+    // partition scalars into buckets
+    for (size_t i = 0; i < data.size(); ++i)
+    {
+      unsigned int bucket = 0;
+      for (size_t j = 0; j < c; ++j)
+        if (test(data[i].scalar, k*c+j))
+          bucket |= 1<<j;
+      if (bucket == 0)
+        continue;
+      CHECK_AND_ASSERT_THROW_MES(bucket < (1u<<c), "bucket overflow");
+      if (buckets_init[bucket])
+      {
+        add(buckets_a[bucket], local_cache_a->cached[i]);
+        add(buckets_b[bucket], local_cache_b->cached[i]);
+      }
+      else
+      {
+        buckets_a[bucket] = data[i].point_a;
+        buckets_b[bucket] = data[i].point_b;
+        buckets_init[bucket] = true;
+      }
+    }
+
+    // sum the buckets
+    ge_p3 pail_a;
+    ge_p3 pail_b;
+    bool pail_init = false;
+    for (size_t i = (1<<c)-1; i > 0; --i)
+    {
+      if (buckets_init[i])
+      {
+        if (pail_init) {
+          add(pail_a, buckets_a[i]);
+          add(pail_b, buckets_b[i]);
+        }
+        else
+        {
+          pail_a = buckets_a[i];
+          pail_b = buckets_b[i];
+          pail_init = true;
+        }
+      }
+      if (pail_init)
+      {
+        if (result_init) {
+          add(result_a, pail_a);
+          add(result_b, pail_b);
+        }
+        else
+        {
+          result_a = pail_a;
+          result_b = pail_b;
+          result_init = true;
+        }
+      }
+    }
+  }
+
+  rct::key res_a;
+  rct::key res_b;
+  ge_p3_tobytes(res_a.bytes, &result_a);
+  ge_p3_tobytes(res_b.bytes, &result_b);
+  std::vector<rct::key> result = {res_a, res_b};
+  return result;
 }
 
 }

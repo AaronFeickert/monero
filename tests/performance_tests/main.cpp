@@ -60,6 +60,7 @@
 #include "bulletproof.h"
 #include "crypto_ops.h"
 #include "multiexp.h"
+#include "double_multiexp.h"
 #include "sig_mlsag.h"
 #include "sig_clsag.h"
 
@@ -286,7 +287,7 @@ int main(int argc, char** argv)
   TEST_PERFORMANCE1(filter, p, test_crypto_ops, op_isInMainSubgroup);
   TEST_PERFORMANCE1(filter, p, test_crypto_ops, op_zeroCommitUncached);
   TEST_PERFORMANCE1(filter, p, test_crypto_ops, op_zeroCommitCached);
-
+/*
   TEST_PERFORMANCE2(filter, p, test_multiexp, multiexp_bos_coster, 2);
   TEST_PERFORMANCE2(filter, p, test_multiexp, multiexp_bos_coster, 4);
   TEST_PERFORMANCE2(filter, p, test_multiexp, multiexp_bos_coster, 8);
@@ -325,8 +326,20 @@ int main(int argc, char** argv)
   TEST_PERFORMANCE2(filter, p, test_multiexp, multiexp_straus_cached, 1024);
   TEST_PERFORMANCE2(filter, p, test_multiexp, multiexp_straus_cached, 2048);
   TEST_PERFORMANCE2(filter, p, test_multiexp, multiexp_straus_cached, 4096);
-
+*/
 #if 1
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 2, 1);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 4, 2);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 8, 2);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 16, 3);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 32, 4);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 64, 4);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 128, 5);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 256, 6);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 512, 7);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 1024, 7);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 2048, 8);
+  TEST_PERFORMANCE2(filter, p, test_double_multiexp, 4096, 9);
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger, 2, 1);
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger, 4, 2);
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger, 8, 2);
@@ -339,6 +352,7 @@ int main(int argc, char** argv)
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger, 1024, 7);
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger, 2048, 8);
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger, 4096, 9);
+/*
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger_cached, 2, 1);
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger_cached, 4, 2);
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger_cached, 8, 2);
@@ -351,6 +365,7 @@ int main(int argc, char** argv)
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger_cached, 1024, 7);
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger_cached, 2048, 8);
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger_cached, 4096, 9);
+*/
 #else
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger_cached, 2, 1);
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger_cached, 2, 2);

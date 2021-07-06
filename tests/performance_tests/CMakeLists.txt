@@ -50,6 +50,7 @@ set(performance_tests_headers
   sc_reduce32.h
   sc_check.h
   multiexp.h
+  double_multiexp.h
   multi_tx_test_base.h
   performance_tests.h
   performance_utils.h

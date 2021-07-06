@@ -53,6 +53,20 @@ struct MultiexpData {
   }
 };
 
+struct DoubleMultiexpData {
+  rct::key scalar;
+  ge_p3 point_a;
+  ge_p3 point_b;
+
+  DoubleMultiexpData() {}
+  DoubleMultiexpData(const rct::key &s, const ge_p3 &p_a, const ge_p3 &p_b): scalar(s), point_a(p_a), point_b(p_b) {}
+  DoubleMultiexpData(const rct::key &s, const rct::key &p_a, const rct::key &p_b): scalar(s)
+  {
+    CHECK_AND_ASSERT_THROW_MES(ge_frombytes_vartime(&point_a, p_a.bytes) == 0, "ge_frombytes_vartime failed");
+    CHECK_AND_ASSERT_THROW_MES(ge_frombytes_vartime(&point_b, p_b.bytes) == 0, "ge_frombytes_vartime failed");
+  }
+};
+
 struct straus_cached_data;
 struct pippenger_cached_data;
 
@@ -62,9 +76,11 @@ std::shared_ptr<straus_cached_data> straus_init_cache(const std::vector<Multiexp
 size_t straus_get_cache_size(const std::shared_ptr<straus_cached_data> &cache);
 rct::key straus(const std::vector<MultiexpData> &data, const std::shared_ptr<straus_cached_data> &cache = NULL, size_t STEP = 0);
 std::shared_ptr<pippenger_cached_data> pippenger_init_cache(const std::vector<MultiexpData> &data, size_t start_offset = 0, size_t N =0);
+std::shared_ptr<pippenger_cached_data> pippenger_init_cache(const std::vector<DoubleMultiexpData> &data, bool use_b = false, size_t start_offset = 0, size_t N =0);
 size_t pippenger_get_cache_size(const std::shared_ptr<pippenger_cached_data> &cache);
 size_t get_pippenger_c(size_t N);
 rct::key pippenger(const std::vector<MultiexpData> &data, const std::shared_ptr<pippenger_cached_data> &cache = NULL, size_t cache_size = 0, size_t c = 0);
+std::vector<rct::key> double_pippenger(const std::vector<DoubleMultiexpData> &data, size_t c = 0);
 
 }
 
